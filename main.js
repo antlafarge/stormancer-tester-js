@@ -42,7 +42,19 @@ function test_connect()
 	client = new Stormancer.Client(config);
 	client.getPublicScene(sceneName, {}).then(function(sc) {
 		scene = sc;
+
+		// preparation for test_echo
 		scene.registerRoute("echo", test_echo_receive);
+
+		// preparation for test_rpc
+		scene.getComponent("rpcService").addProcedure("rpc", function(ctx) {
+			console.log("test_rpc: data received (rpc server)");
+			ctx.sendValue(ctx.data(), Stormancer.PacketPriority.MEDIUM_PRIORITY);
+			validTest("rpcserver");
+			return Promise.resolve();
+		}, true);
+
+		// connect to scene
 		return scene.connect().then(function() {
 			validTest("connect");
     		execNextTest();
@@ -77,11 +89,11 @@ function test_rpc()
 	console.log("test_rpc: send data");
 
 	scene.getComponent("rpcService").rpc("rpc", "stormancer", function(packet) {
-		console.log("test_rpc: data received");
+		console.log("test_rpc: data received (rpc client)");
 		data = packet.readObject();
 		if (data === "stormancer")
 		{
-			validTest("rpc");
+			validTest("rpcclient");
 			execNextTest();
 		}
 	});

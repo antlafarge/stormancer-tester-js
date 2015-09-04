@@ -105,6 +105,9 @@ var Stormancer;
                     scene.addRoute(RpcClientPlugin.NextRouteName, function (p) {
                         processor.next(p);
                     });
+                    scene.addRoute(RpcClientPlugin.CancellationRouteName, function (p) {
+                        processor.cancel(p);
+                    });
                     scene.addRoute(RpcClientPlugin.ErrorRouteName, function (p) {
                         processor.error(p);
                     });
@@ -117,6 +120,7 @@ var Stormancer;
         RpcClientPlugin.NextRouteName = "stormancer.rpc.next";
         RpcClientPlugin.ErrorRouteName = "stormancer.rpc.error";
         RpcClientPlugin.CompletedRouteName = "stormancer.rpc.completed";
+        RpcClientPlugin.CancellationRouteName = "stormancer.rpc.cancel";
         RpcClientPlugin.Version = "1.1.0";
         RpcClientPlugin.PluginName = "stormancer.plugins.rpc";
         RpcClientPlugin.ServiceName = "rpcService";
@@ -126,10 +130,63 @@ var Stormancer;
 })(Stormancer || (Stormancer = {}));
 var Stormancer;
 (function (Stormancer) {
+    var RpcRequestContext = (function () {
+        function RpcRequestContext(peer, scene, id, ordered, data, token) {
+            this._scene = null;
+            this.id = null;
+            this._ordered = null;
+            this._peer = null;
+            this._msgSent = null;
+            this._data = null;
+            this._cancellationToken = null;
+            this._scene = scene;
+            this.id = id;
+            this._ordered = ordered;
+            this._peer = peer;
+            this._data = data;
+            this._cancellationToken = token;
+        }
+        RpcRequestContext.prototype.remotePeer = function () {
+            return this._peer;
+        };
+        RpcRequestContext.prototype.data = function () {
+            return this._data;
+        };
+        RpcRequestContext.prototype.writeRequestId = function (data) {
+            var newData = new Uint8Array(2 + data.byteLength);
+            (new DataView(newData.buffer)).setUint16(0, this.id, true);
+            newData.set(data, 2);
+            return newData;
+        };
+        RpcRequestContext.prototype.sendValue = function (data, priority) {
+            this.writeRequestId(data);
+            this._scene.sendPacket(Stormancer.RpcClientPlugin.NextRouteName, data, priority, (this._ordered ? 3 /* RELIABLE_ORDERED */ : 2 /* RELIABLE */));
+            this._msgSent = 1;
+        };
+        RpcRequestContext.prototype.sendError = function (errorMsg) {
+            var data = this._peer.serializer.serialize(errorMsg);
+            this.writeRequestId(data);
+            this._scene.sendPacket(Stormancer.RpcClientPlugin.ErrorRouteName, data, 2 /* MEDIUM_PRIORITY */, 3 /* RELIABLE_ORDERED */);
+        };
+        RpcRequestContext.prototype.sendCompleted = function () {
+            var data = new Uint8Array(0);
+            this.writeRequestId(data);
+            var data2 = new Uint8Array(1 + data.byteLength);
+            data2[0] = this._msgSent;
+            data2.set(data, 1);
+            this._scene.sendPacket(Stormancer.RpcClientPlugin.CompletedRouteName, data, 2 /* MEDIUM_PRIORITY */, 3 /* RELIABLE_ORDERED */);
+        };
+        return RpcRequestContext;
+    })();
+    Stormancer.RpcRequestContext = RpcRequestContext;
+})(Stormancer || (Stormancer = {}));
+var Stormancer;
+(function (Stormancer) {
     var RpcService = (function () {
         function RpcService(scene) {
             this._currentRequestId = 0;
             this._pendingRequests = {};
+            this._runningRequests = {};
             this._msgpackSerializer = new Stormancer.MsgPackSerializer();
             this._scene = scene;
         }
@@ -194,10 +251,35 @@ var Stormancer;
             dataToSend.set(data, 2);
             this._scene.sendPacket(route, dataToSend, priority, 3 /* RELIABLE_ORDERED */);
             return {
-                unsubscribe: function () {
+                cancel: function () {
+                    var buffer = new ArrayBuffer(2);
+                    new DataView(buffer).setUint16(0, id, true);
+                    _this._scene.sendPacket("stormancer.rpc.cancel", new Uint8Array(buffer));
                     delete _this._pendingRequests[id];
                 }
             };
+        };
+        RpcService.prototype.addProcedure = function (route, handler, ordered) {
+            var _this = this;
+            var metadatas = {};
+            metadatas[Stormancer.RpcClientPlugin.PluginName] = Stormancer.RpcClientPlugin.Version;
+            this._scene.addRoute(route, function (p) {
+                var id = p.getDataView().getUint16(0, true);
+                var cts = new Cancellation.TokenSource();
+                var ctx = new Stormancer.RpcRequestContext(p.connection, _this._scene, id, ordered, p.data, cts.token);
+                if (!_this._runningRequests[id]) {
+                    handler(ctx).then(function (t) {
+                        delete _this._runningRequests[id];
+                        ctx.sendCompleted();
+                    }).catch(function (reason) {
+                        delete _this._runningRequests[id];
+                        ctx.sendError(reason);
+                    });
+                }
+                else {
+                    throw new Error("Request already exists");
+                }
+            }, metadatas);
         };
         RpcService.prototype.reserveId = function () {
             var loop = 0;
@@ -247,6 +329,20 @@ var Stormancer;
                 else {
                     request.observer.onCompleted();
                     delete this._pendingRequests[request.id];
+                }
+            }
+        };
+        RpcService.prototype.cancel = function (packet) {
+            var id = (new DataView(packet.data.buffer, packet.data.byteOffset, packet.data.byteLength)).getUint16(0, true);
+            var cts = this._runningRequests[id];
+            if (cts) {
+                cts.cancel();
+            }
+        };
+        RpcService.prototype.disconnected = function () {
+            for (var i in this._runningRequests) {
+                if (this._runningRequests.hasOwnProperty(i)) {
+                    this._runningRequests[i].cancel();
                 }
             }
         };
