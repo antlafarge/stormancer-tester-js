@@ -17,7 +17,7 @@ function main()
 	tests.push(test_rpc);
 	tests.push(test_syncclock);
 	tests.push(test_disconnect);
-    execNextTest();
+	execNextTest();
 }
 
 function execNextTest()
@@ -67,7 +67,7 @@ function test_connect()
 		// connect to scene
 		return scene.connect().then(function() {
 			validTest("connect");
-    		execNextTest();
+			execNextTest();
 		});
 	});
 }
@@ -133,5 +133,113 @@ function test_disconnect()
 		execNextTest();
 	}).catch(function(e) {
 		console.error("test 'disconnect' failed", e);
+	});
+}
+
+function run_pings()
+{
+	Highcharts.setOptions({
+		global: {
+			useUTC: false
+		}
+	});
+
+	$('#container').highcharts({
+		chart: {
+			type: 'line',
+			animation: false,
+			marginRight: 10,
+			events: {
+				load: function () {
+					// set up the updating of the chart each second
+					var serie0 = this.series[0];
+					var serie1 = this.series[1];
+					var serie2 = this.series[2];
+					var config = Stormancer.Configuration.forAccount(accountId, applicationName);
+					var client = new Stormancer.Client(config);
+					var pendingRpcPings = 0;
+					client.getPublicScene(sceneName, {}).then(function(scene) {
+						// connect to scene
+						return scene.connect().then(function() {
+							setInterval(function () {
+								if (pendingRpcPings < 10)
+								{
+									pendingRpcPings++;
+									var requestTime = client.clock();
+									var shift = (serie0.data.length > 1000 && serie1.data.length > 1000 ? true : false);
+									serie0.addPoint([requestTime, 0], true, shift);
+									scene.getComponent("rpcService").rpc("rpcping", null, function(packet) {
+										pendingRpcPings--;
+										var responseTime = client.clock();
+										var delta = responseTime - requestTime;
+										serie1.addPoint([requestTime, delta], true, shift);
+										var data = packet.readObject();
+										delta2 = data - requestTime;
+										serie2.addPoint([requestTime, delta2], true, shift);
+									});
+								}
+							}, 100);
+						});
+					});
+				}
+			}
+		},
+		title: {
+			text: 'Pings'
+		},
+		xAxis: {
+			tickPixelInterval: 150
+		},
+		yAxis: {
+			title: {
+				text: 'ping'
+			},
+			min: 0
+		},
+		tooltip: {
+			formatter: function () {
+				return '<b>' + this.series.name + '</b><br/>' +
+					this.x + '<br/>' +
+					Highcharts.numberFormat(this.y, 2);
+			}
+		},
+		legend: {
+			enabled: false
+		},
+		exporting: {
+			enabled: false
+		},
+		series: [
+			{
+				name: 'sends',
+				data: [],
+				lineWidth : 0,
+				marker : {
+                    enabled : true,
+                    radius : 1,
+                    symbol: "circle"
+                }
+			},
+			{
+				name: 'pings',
+				data: [],
+				lineWidth : 1,
+				marker : {
+                    enabled : true,
+                    radius : 2,
+                    symbol: "circle"
+                }
+			},
+			{
+				name: 'pings2',
+				data: [],
+				lineWidth : 1,
+				marker : {
+                    enabled : true,
+                    radius : 2,
+                    symbol: "circle"
+                }
+			}
+		]
 	});
 }

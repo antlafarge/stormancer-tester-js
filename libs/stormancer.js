@@ -2130,6 +2130,10 @@ var Stormancer;
             var bytes = new Uint8Array(data.length + 1);
             bytes[0] = msgId;
             bytes.set(data, 1);
+            if (typeof(DEBUG) !== "undefined" && DEBUG)
+            {
+	            console.log("SENT", bytes);
+            }
             this._socket.send(bytes.buffer);
         };
         WebSocketConnection.prototype.sendToScene = function (sceneIndex, route, data, priority, reliability) {
@@ -2139,6 +2143,10 @@ var Stormancer;
             ushorts[0] = route;
             bytes.set(new Uint8Array(ushorts.buffer), 1);
             bytes.set(data, 3);
+            if (typeof(DEBUG) !== "undefined" && DEBUG)
+            {
+	            console.log("SENT", bytes);
+        	}
             this._socket.send(bytes.buffer);
         };
         WebSocketConnection.prototype.setApplication = function (account, application) {
@@ -2211,6 +2219,10 @@ var Stormancer;
         };
         WebSocketTransport.prototype.onMessage = function (buffer) {
             var data = new Uint8Array(buffer);
+            if (typeof(DEBUG) !== "undefined" && DEBUG)
+            {
+            	console.log("RECEIVED", data);
+            }
             if (this._connection) {
                 var packet = new Stormancer.Packet(this._connection, data);
                 if (data[0] === Stormancer.MessageIDTypes.ID_CONNECTION_RESULT) {
