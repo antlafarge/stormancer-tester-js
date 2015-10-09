@@ -10,7 +10,7 @@ var scene;
 
 var tests = [];
 
-var maxPendingRpcPings = 1;
+var maxPendingRpcPings = 4;
 
 function main()
 {
@@ -157,6 +157,7 @@ function run_pings()
 					var serie0 = this.series[0];
 					var serie1 = this.series[1];
 					var serie2 = this.series[2];
+					var serie3 = this.series[3];
 					var config = Stormancer.Configuration.forAccount(accountId, applicationName);
 					var client = new Stormancer.Client(config);
 					var pendingRpcPings = 0;
@@ -168,7 +169,8 @@ function run_pings()
 								{
 									pendingRpcPings++;
 									var requestTime = client.clock();
-									var shift = (serie0.data.length > 1000 && serie1.data.length > 1000 ? true : false);
+									var d0 = new Date();
+									var shift = (serie0.data.length > 1000 && serie1.data.length > 1000 && serie2.data.length > 1000 && serie3.data.length > 1000 ? true : false);
 									serie0.addPoint([requestTime, 0], true, shift);
 									scene.getComponent("rpcService").rpc("rpcping", null, function(packet) {
 										pendingRpcPings--;
@@ -178,6 +180,9 @@ function run_pings()
 										var data = packet.readObject();
 										delta2 = data - requestTime;
 										serie2.addPoint([requestTime, delta2], true, shift);
+										var d1 = new Date();
+										delta3 = d1 - d0;
+										serie3.addPoint([requestTime, delta3], true, shift);
 									});
 								}
 							}, 100);
@@ -234,6 +239,16 @@ function run_pings()
 			},
 			{
 				name: 'pings2',
+				data: [],
+				lineWidth : 1,
+				marker : {
+                    enabled : true,
+                    radius : 2,
+                    symbol: "circle"
+                }
+			},
+			{
+				name: 'pings3',
 				data: [],
 				lineWidth : 1,
 				marker : {
