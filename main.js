@@ -218,7 +218,7 @@ function run_pings()
 		},
 		series: [
 			{
-				name: 'sends',
+				name: 'send rpc',
 				data: [],
 				lineWidth : 0,
 				marker : {
@@ -228,7 +228,7 @@ function run_pings()
                 }
 			},
 			{
-				name: 'pings',
+				name: 'ping (syncclock)',
 				data: [],
 				lineWidth : 1,
 				marker : {
@@ -238,7 +238,7 @@ function run_pings()
                 }
 			},
 			{
-				name: 'pings2',
+				name: 'request time (syncclock)',
 				data: [],
 				lineWidth : 1,
 				marker : {
@@ -248,7 +248,7 @@ function run_pings()
                 }
 			},
 			{
-				name: 'pings3',
+				name: 'ping (js time)',
 				data: [],
 				lineWidth : 1,
 				marker : {
