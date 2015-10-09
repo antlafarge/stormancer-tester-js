@@ -10,7 +10,7 @@ var scene;
 
 var tests = [];
 
-var maxPendingRpcPings = 4;
+var maxPendingRpcPings = 1;
 
 function main()
 {
