@@ -49,9 +49,19 @@ function test_connect()
 		// preparation for test_rpc
 		scene.getComponent("rpcService").addProcedure("rpc", function(ctx) {
 			console.log("test_rpc: data received (rpc server)");
-			ctx.sendValue(ctx.data(), Stormancer.PacketPriority.MEDIUM_PRIORITY);
-			validTest("rpcserver");
-			return Promise.resolve();
+			var data = ctx.data();
+			var message = msgpack.unpack(data);
+			if (message == "stormancer")
+			{
+				ctx.sendValue(data, Stormancer.PacketPriority.MEDIUM_PRIORITY);
+				validTest("rpcserver");
+				execNextTest();
+				return Promise.resolve();
+			}
+			else
+			{
+				return Promise.reject();
+			}
 		}, true);
 
 		// connect to scene
@@ -94,27 +104,24 @@ function test_rpc()
 		if (data === "stormancer")
 		{
 			validTest("rpcclient");
-			execNextTest();
 		}
 	});
 }
 
 function test_syncclock()
 {
-	console.log("test_syncclock: start");
+	console.log("test_syncclock");
 
-	setTimeout(function() {
-		console.log("test_syncclock: check sync clock");
-		if (client.clock())
-		{
-			validTest("syncclock");
-			execNextTest();
-		}
-		else
-		{
-			test_syncclock();
-		}
-	}, 100);
+	var clock = client.clock();
+	if (clock)
+	{
+		validTest("syncclock");
+		execNextTest();
+	}
+	else
+	{
+		setTimeout(test_syncclock, 1000);
+	}
 }
 
 function test_disconnect()
