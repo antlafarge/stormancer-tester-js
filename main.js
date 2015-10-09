@@ -10,6 +10,8 @@ var scene;
 
 var tests = [];
 
+var maxPendingRpcPings = 1;
+
 function main()
 {
 	tests.push(test_connect);
@@ -162,7 +164,7 @@ function run_pings()
 						// connect to scene
 						return scene.connect().then(function() {
 							setInterval(function () {
-								if (pendingRpcPings < 10)
+								if (pendingRpcPings < maxPendingRpcPings)
 								{
 									pendingRpcPings++;
 									var requestTime = client.clock();
