@@ -10,8 +10,6 @@ var scene;
 
 var tests = [];
 
-var maxPendingRpcPings = 1;
-
 function main()
 {
 	tests.push(test_connect);
@@ -140,6 +138,8 @@ function test_disconnect()
 
 function run_pings()
 {
+	document.querySelector("#buttonStartPing").disabled = true;
+
 	Highcharts.setOptions({
 		global: {
 			useUTC: false
@@ -153,41 +153,30 @@ function run_pings()
 			marginRight: 10,
 			events: {
 				load: function () {
-					// set up the updating of the chart each second
 					var serie0 = this.series[0];
 					var serie1 = this.series[1];
 					var serie2 = this.series[2];
 					var serie3 = this.series[3];
-					var config = Stormancer.Configuration.forAccount(accountId, applicationName);
-					var client = new Stormancer.Client(config);
-					var pendingRpcPings = 0;
-					client.getPublicScene(sceneName, {}).then(function(scene) {
-						// connect to scene
-						return scene.connect().then(function() {
-							setInterval(function () {
-								if (pendingRpcPings < maxPendingRpcPings)
-								{
-									pendingRpcPings++;
-									var requestTime = client.clock();
-									var d0 = new Date();
-									var shift = (serie0.data.length > 1000 && serie1.data.length > 1000 && serie2.data.length > 1000 && serie3.data.length > 1000 ? true : false);
-									serie0.addPoint([requestTime, 0], true, shift);
-									scene.getComponent("rpcService").rpc("rpcping", null, function(packet) {
-										pendingRpcPings--;
-										var responseTime = client.clock();
-										var delta = responseTime - requestTime;
-										serie1.addPoint([requestTime, delta], true, shift);
-										var data = packet.readObject();
-										delta2 = data - requestTime;
-										serie2.addPoint([requestTime, delta2], true, shift);
-										var d1 = new Date();
-										delta3 = d1 - d0;
-										serie3.addPoint([requestTime, delta3], true, shift);
-									});
-								}
-							}, 100);
-						});
+					var worker = new Worker("pingworker.js");
+					worker.postMessage({
+						cmd: "start",
+						accountId: accountId,
+						applicationName: applicationName,
+						sceneName: sceneName
 					});
+					worker.addEventListener('message', function(e) {
+						serie0.addPoint([e.data.x, e.data.y0], false, e.data.shift);
+						serie1.addPoint([e.data.x, e.data.y1], false, e.data.shift);
+						serie2.addPoint([e.data.x, e.data.y2], false, e.data.shift);
+						serie3.addPoint([e.data.x, e.data.y3], e.data.redraw, e.data.shift);
+					}, false);
+					maxPendingRpcPings = function(value)
+					{
+						worker.postMessage({
+							cmd: "maxPendingRpcPings",
+							maxPendingRpcPings: value
+						});
+					}
 				}
 			}
 		},
@@ -232,8 +221,8 @@ function run_pings()
 				data: [],
 				lineWidth : 1,
 				marker : {
-                    enabled : true,
-                    radius : 2,
+                    enabled : false,
+                    radius : 1,
                     symbol: "circle"
                 }
 			},
@@ -242,8 +231,8 @@ function run_pings()
 				data: [],
 				lineWidth : 1,
 				marker : {
-                    enabled : true,
-                    radius : 2,
+                    enabled : false,
+                    radius : 1,
                     symbol: "circle"
                 }
 			},
@@ -252,8 +241,8 @@ function run_pings()
 				data: [],
 				lineWidth : 1,
 				marker : {
-                    enabled : true,
-                    radius : 2,
+                    enabled : false,
+                    radius : 1,
                     symbol: "circle"
                 }
 			}
