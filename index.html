@@ -15,11 +15,10 @@
 <input type="checkbox" disabled id="checkbox_disconnect"> Disconnect
 </p>
 
-<button id="buttonStartPing" onclick="run_pings()">Start pings</button>
-<div id="container" style="min-width:640px; height:480px; margin:0 auto"></div>
+<button id="buttonStartPing" onclick="run_pings()">Start pings</button> <input id="inputPingsDelay" type="text" value="1000"><button onclick="updatePingsDelay()">Update pings delay</button>
 
 <script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
-<script src="http://code.highcharts.com/highcharts.js"></script>
-<script src="http://code.highcharts.com/modules/exporting.js"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="https://code.highcharts.com/modules/exporting.js"></script>
 <script src="libs/stormancer.js"></script>
 <script src="main.js"></script>
