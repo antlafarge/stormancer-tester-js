@@ -10,6 +10,8 @@ var scene;
 
 var tests = [];
 
+var stormancer = "stormancer";
+
 var worker = new Worker("pingworker.js");
 
 function main()
@@ -17,6 +19,7 @@ function main()
 	tests.push(test_connect);
 	tests.push(test_echo);
 	tests.push(test_rpc);
+	tests.push(test_rpc_cancel);
 	tests.push(test_syncclock);
 	tests.push(test_disconnect);
 	execNextTest();
@@ -50,22 +53,39 @@ function test_connect()
 
 		// preparation for test_rpc
 		scene.getComponent("rpcService").addProcedure("rpc", function(ctx) {
-			console.log("test_rpc: rpc server received");
-			var data = ctx.data();
-			var message = msgpack.unpack(data);
-			if (message == "stormancer")
-			{
-				console.log("test_rpc: sending rpc server response");
-				ctx.sendValue(data, Stormancer.PacketPriority.MEDIUM_PRIORITY);
-				validTest("rpcserver");
+			console.log("test_rpc: rpc request received");
+
+			ctx.cancellationToken().onCancelled(function(reason) {
+				console.log("test_rpc: rpc request cancelled");
+				validTest("rpcclientcancel");
 				execNextTest();
-				return Promise.resolve();
-			}
-			else
-			{
-				return Promise.reject();
-			}
+			});
+
+			// return a promise for potential asynchronous call
+			return new Promise(function(resolve, reject) {
+				setTimeout(resolve, 1000); // async call, promise will resolve after some time
+			}).then(function() {
+				// then we execute the code, if the rpc is not cancelled
+				if(!ctx.cancellationToken().isCancelled()) {
+					var data = ctx.data();
+					var message = msgpack.unpack(data);
+					if (message === stormancer)
+					{
+						console.log("test_rpc: sending rpc response");
+						ctx.sendValue(data, Stormancer.PacketPriority.MEDIUM_PRIORITY);
+						validTest("rpcclient");
+						execNextTest();
+					}
+				}
+			});
+
 		}, true);
+
+		// preparation for test_rpc_cancel
+		scene.registerRoute("rpcservercancel", function(d){
+			console.log("test_rpc_cancel: RPC server cancelled validated");
+			validTest("rpcservercancel");
+		});
 
 		// connect to scene
 		return scene.connect().then(function() {
@@ -79,14 +99,14 @@ function test_echo()
 {
 	console.log("test_echo: send data");
 
-	scene.send("echo", "stormancer");
+	scene.send("echo", stormancer);
 }
 
 function test_echo_received(data)
 {
 	console.log("test_echo: data received");
 
-	if (data === "stormancer")
+	if (data === stormancer)
 	{
 		validTest("echo");
 		execNextTest();
@@ -101,14 +121,28 @@ function test_rpc()
 {
 	console.log("test_rpc: sending rpc request");
 
-	scene.getComponent("rpcService").rpc("rpc", "stormancer", function(packet) {
-		console.log("test_rpc: rpc client received");
-		data = packet.readObject();
-		if (data === "stormancer")
+	scene.getComponent("rpcService").rpc("rpc", stormancer, function(packet) {
+		console.log("test_rpc: rpc response received");
+		var data = packet.readObject();
+		if (data === stormancer)
 		{
-			validTest("rpcclient");
+			validTest("rpcserver");
+			//execNextTest(); // don't do this, the server send back a rpc for the next test!
 		}
 	});
+}
+
+function test_rpc_cancel()
+{
+	console.log("test_rpc_cancel: sending rpc request");
+
+	var rpcSub = scene.getComponent("rpcService").rpc("rpc", stormancer, function(packet) {
+		console.warn("test_rpc_cancel: rpc request not canceled (rpc response received)");
+		execNextTest();
+	});
+	rpcSub.unsubscribe();
+
+	ssub = rpcSub;
 }
 
 function test_syncclock()
@@ -123,7 +157,7 @@ function test_syncclock()
 	}
 	else
 	{
-		setTimeout(test_syncclock, 1000);
+		setTimeout(test_syncclock, 500);
 	}
 }
 
