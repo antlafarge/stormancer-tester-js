@@ -57,7 +57,7 @@ function test_connect()
 
 			ctx.cancellationToken().onCancelled(function(reason) {
 				console.log("test_rpc: rpc request cancelled");
-				validTest("rpcclientcancel");
+				validTest("rpcservercancel");
 				execNextTest();
 			});
 
@@ -73,7 +73,7 @@ function test_connect()
 					{
 						console.log("test_rpc: sending rpc response");
 						ctx.sendValue(data, Stormancer.PacketPriority.MEDIUM_PRIORITY);
-						validTest("rpcclient");
+						validTest("rpcserver");
 						execNextTest();
 					}
 				}
@@ -82,9 +82,9 @@ function test_connect()
 		}, true);
 
 		// preparation for test_rpc_cancel
-		scene.registerRoute("rpcservercancel", function(d){
+		scene.registerRoute("rpcclientcancelled", function(d){
 			console.log("test_rpc_cancel: RPC server cancelled validated");
-			validTest("rpcservercancel");
+			validTest("rpcclientcancel");
 		});
 
 		// connect to scene
@@ -126,7 +126,7 @@ function test_rpc()
 		var data = packet.readObject();
 		if (data === stormancer)
 		{
-			validTest("rpcserver");
+			validTest("rpcclient");
 			//execNextTest(); // don't do this, the server send back a rpc for the next test!
 		}
 	});
